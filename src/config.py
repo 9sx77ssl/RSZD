@@ -159,8 +159,7 @@ MESSAGES = {
     "start": (
         "<b>RSZD</b>\n"
         "<blockquote>Clean downloads for TikTok, Instagram, YouTube, Shorts, and Spotify.</blockquote>\n\n"
-        "Send a link and the bot will handle the rest.\n"
-        "Admins can upload <code>cookies.txt</code> directly when needed."
+        "Send a link and the bot will handle the rest."
     ),
     "processing": "<b>Preparing request</b>\n<blockquote>Please wait.</blockquote>",
     "queued": "<b>Queued</b>\n<blockquote>Position {position} of {total}</blockquote>",
