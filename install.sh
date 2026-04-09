@@ -80,7 +80,7 @@ load_env() {
     fi
 
     INSTALL_DIR="${INSTALL_DIR:-/opt/rszd}"
-    SERVICE_NAME="${SERVICE_NAME:-rsz-downloader}"
+    SERVICE_NAME="${SERVICE_NAME:-rszd}"
     DOWNLOAD_DIR="${DOWNLOAD_DIR:-downloads}"
     COOKIES_DIR="${COOKIES_DIR:-cookies}"
     RUNTIME_DOWNLOAD_DIR="$(resolve_runtime_path "${DOWNLOAD_DIR}")"
@@ -132,7 +132,7 @@ install_systemd_service() {
     log_info "Installing systemd service ${SERVICE_NAME}..."
     cat > "${service_path}" <<EOF
 [Unit]
-Description=RSZDownloader Telegram Bot
+Description=RSZD Telegram Bot
 After=network-online.target
 Wants=network-online.target
 

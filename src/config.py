@@ -108,7 +108,7 @@ YTDLP_UPDATE_INTERVAL = _get_int("YTDLP_UPDATE_INTERVAL", 6 * 60 * 60)
 AUTO_UPDATE_YTDLP = _get_bool("AUTO_UPDATE_YTDLP", False)
 TELEGRAM_FILE_SIZE_LIMIT = _get_int("TELEGRAM_FILE_SIZE_LIMIT", 50 * 1024 * 1024)
 COOKIE_AUTO_IMPORT = _get_bool("COOKIE_AUTO_IMPORT", True)
-SERVICE_NAME = os.getenv("SERVICE_NAME", "rsz-downloader").strip() or "rsz-downloader"
+SERVICE_NAME = os.getenv("SERVICE_NAME", "rszd").strip() or "rszd"
 INSTALL_DIR = os.getenv("INSTALL_DIR", str(PROJECT_DIR)).strip() or str(PROJECT_DIR)
 
 if YOUTUBE_MAX_DURATION <= 0:
@@ -143,20 +143,22 @@ SETTINGS = Settings(
 COOKIE_SERVICE_DOMAINS: Dict[str, tuple[str, ...]] = {
     "youtube": (".youtube.com", "youtube.com", ".google.com", "google.com", ".youtu.be", "youtu.be"),
     "tiktok": (".tiktok.com", "tiktok.com", ".www.tiktok.com", "www.tiktok.com", ".vm.tiktok.com", "vm.tiktok.com"),
+    "instagram": (".instagram.com", "instagram.com", ".www.instagram.com", "www.instagram.com"),
     "spotify": (".spotify.com", "spotify.com", ".open.spotify.com", "open.spotify.com"),
 }
 
 COOKIE_FILENAMES: Dict[str, str] = {
     "youtube": "youtube.cookies.txt",
     "tiktok": "tiktok.cookies.txt",
+    "instagram": "instagram.cookies.txt",
     "spotify": "spotify.cookies.txt",
     "global": "global.cookies.txt",
 }
 
 MESSAGES = {
     "start": (
-        "<b>RSZDownloader</b>\n"
-        "<blockquote>Clean downloads for TikTok, YouTube, Shorts, and Spotify.</blockquote>\n\n"
+        "<b>RSZD</b>\n"
+        "<blockquote>Clean downloads for TikTok, Instagram, YouTube, Shorts, and Spotify.</blockquote>\n\n"
         "Send a link and the bot will handle the rest.\n"
         "Admins can upload <code>cookies.txt</code> directly when needed."
     ),

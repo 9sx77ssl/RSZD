@@ -8,6 +8,7 @@ def test_extract_url():
 def test_detect_service_variants():
     assert detect_service("https://www.youtube.com/shorts/abc123") == "youtube"
     assert detect_service("https://vm.tiktok.com/abc") == "tiktok"
+    assert detect_service("https://www.instagram.com/reel/C12345/") == "instagram"
     assert detect_service("https://open.spotify.com/track/123") == "spotify"
 
 

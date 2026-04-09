@@ -53,11 +53,12 @@ class DownloadPackage:
 
 URL_REGEX = re.compile(r"https?://[^\s<>{}\"|\\^`\[\]]+")
 
-ServiceName = Literal["youtube", "tiktok", "spotify"]
+ServiceName = Literal["youtube", "tiktok", "instagram", "spotify"]
 
 SERVICE_HOSTS: dict[ServiceName, set[str]] = {
     "youtube": {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"},
     "tiktok": {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com"},
+    "instagram": {"instagram.com", "www.instagram.com"},
     "spotify": {"open.spotify.com"},
 }
 
@@ -291,6 +292,66 @@ async def download_tiktok(url: str) -> DownloadPackage:
     return DownloadPackage(files=[str(renamed_video)], send_as="video", title=title)
 
 
+async def download_instagram(url: str) -> DownloadPackage:
+    print("[Instagram] Fetching post metadata...")
+    loop = asyncio.get_running_loop()
+
+    def _get_info():
+        for use_cookies in (True, False):
+            try:
+                with yt_dlp.YoutubeDL(get_base_opts("instagram", use_cookies=use_cookies)) as ydl:
+                    return ydl.extract_info(url, download=False)
+            except Exception:
+                continue
+        raise DownloadError("Instagram: could not fetch post metadata")
+
+    info = await loop.run_in_executor(None, _get_info)
+    post_id = info.get("id", "instagram")
+    title = info.get("title") or info.get("description") or "instagram_post"
+    has_gallery = bool(info.get("entries")) or info.get("_type") in {"playlist", "multi_video"}
+
+    def _download():
+        ydl_opts = {
+            **get_base_opts("instagram"),
+            "outtmpl": str(DOWNLOAD_DIR / (f"{post_id}_%(autonumber)s.%(ext)s" if has_gallery else f"{post_id}.%(ext)s")),
+            "noplaylist": not has_gallery,
+            "writethumbnail": False,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.extract_info(url, download=True)
+        return _collect_downloads(post_id)
+
+    raw_files = await loop.run_in_executor(None, _download)
+    if not raw_files:
+        raise DownloadError("Instagram: media files were not downloaded")
+
+    image_files = [path for path in raw_files if path.suffix.lower() in IMAGE_EXTENSIONS]
+    video_files = [path for path in raw_files if path.suffix.lower() in VIDEO_EXTENSIONS]
+    other_files = [path for path in raw_files if path not in image_files + video_files]
+
+    if image_files and not video_files:
+        renamed = [_rename_file(path, "instagram", title, index=index + 1) for index, path in enumerate(image_files)]
+        _delete_paths(other_files)
+        for path in renamed:
+            if path.stat().st_size > TELEGRAM_FILE_SIZE_LIMIT:
+                _delete_paths(renamed)
+                raise FileTooLargeError("Instagram image exceeds Telegram size limit")
+        return DownloadPackage(files=[str(path) for path in renamed], send_as="media_group", title=title)
+
+    if not video_files:
+        _delete_paths(other_files)
+        raise DownloadError("Instagram: supported media was not found")
+
+    video_path = max(video_files, key=lambda item: item.stat().st_size)
+    renamed_video = _rename_file(video_path, "instagram", title)
+    _delete_paths([path for path in video_files if path != video_path] + image_files + other_files)
+    if renamed_video.stat().st_size > TELEGRAM_FILE_SIZE_LIMIT:
+        renamed_video.unlink(missing_ok=True)
+        raise FileTooLargeError("Instagram video exceeds Telegram size limit")
+
+    return DownloadPackage(files=[str(renamed_video)], send_as="video", title=title)
+
+
 async def download_youtube(url: str) -> DownloadPackage:
     print("[YouTube] Checking video...")
     loop = asyncio.get_running_loop()
@@ -500,6 +561,7 @@ async def download_spotify(url: str) -> DownloadPackage:
 
 
 register_service(ServiceHandler(name="tiktok", download=download_tiktok))
+register_service(ServiceHandler(name="instagram", download=download_instagram))
 register_service(ServiceHandler(name="youtube", download=download_youtube))
 register_service(ServiceHandler(name="spotify", download=download_spotify))
 

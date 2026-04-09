@@ -10,6 +10,8 @@ Minimal, fast, production-minded Telegram downloader bot built on `aiogram`, `yt
 
 - TikTok videos
 - TikTok photo posts and galleries
+- Instagram Reels
+- Instagram posts
 - YouTube videos
 - YouTube Shorts
 - Spotify tracks through YouTube audio extraction
@@ -75,6 +77,17 @@ To import cookies:
 1. Export a Netscape-format `cookies.txt`
 2. Send it to the bot as a normal Telegram document
 
+Supported cookie formats:
+
+- Recommended: Netscape `cookies.txt`
+- Also accepted: JSON cookie array exports from browser tools
+
+Best practice:
+
+- export one full `cookies.txt`
+- send it to the bot without renaming fields or editing it manually
+- the bot will split entries by service domain for YouTube, TikTok, Instagram, Spotify, and a global fallback file
+
 The bot validates the file, splits cookies by service domain, and stores service-specific cookie files automatically. Use `/cookies` to inspect the current state.
 
 ## Local Development
@@ -104,7 +117,6 @@ The GitHub Actions pipeline runs:
 
 ## Good Next Services with yt-dlp
 
-- Instagram Reels and posts
 - X / Twitter video
 - Twitch clips
 - Reddit hosted video
@@ -114,9 +126,9 @@ The GitHub Actions pipeline runs:
 ## Operations
 
 ```bash
-sudo systemctl status rsz-downloader
-sudo journalctl -u rsz-downloader -f
-sudo systemctl restart rsz-downloader
+sudo systemctl status rszd
+sudo journalctl -u rszd -f
+sudo systemctl restart rszd
 ```
 
 ## Notes
