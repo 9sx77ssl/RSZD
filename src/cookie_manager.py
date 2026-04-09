@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 from src.config import COOKIE_FILENAMES, COOKIE_SERVICE_DOMAINS, COOKIES_DIR
 
@@ -27,14 +27,14 @@ def _normalize_domain(domain: str) -> str:
     return domain.strip().lower()
 
 
-def _service_for_domain(domain: str) -> str:
+def _service_for_domain(domain: str) -> Optional[str]:
     normalized = _normalize_domain(domain)
     for service, domains in COOKIE_SERVICE_DOMAINS.items():
         for candidate in domains:
             stripped = candidate.lstrip(".")
             if normalized == candidate or normalized == stripped or normalized.endswith(f".{stripped}"):
                 return service
-    return "global"
+    return None
 
 
 def _serialize_entry(parts: List[str]) -> str:
@@ -147,9 +147,16 @@ def import_cookie_file(source_path: Path, original_name: str) -> CookieImportRes
     parsed_entries = _ensure_entries(content)
 
     grouped: Dict[str, List[List[str]]] = {key: [] for key in COOKIE_FILENAMES}
+    recognized_entries = 0
     for parts in parsed_entries:
         service = _service_for_domain(parts[0])
+        if service is None:
+            continue
         grouped.setdefault(service, []).append(parts)
+        recognized_entries += 1
+
+    if recognized_entries == 0:
+        raise CookieImportError("No supported cookies found for YouTube, TikTok, or Instagram")
 
     counts: Dict[str, int] = {}
     for service, filename in COOKIE_FILENAMES.items():
@@ -171,10 +178,6 @@ def get_cookie_path(service: str) -> str | None:
     service_file = COOKIES_DIR / COOKIE_FILENAMES.get(service, "")
     if service_file.exists():
         return str(service_file)
-
-    fallback = COOKIES_DIR / COOKIE_FILENAMES["global"]
-    if fallback.exists():
-        return str(fallback)
     return None
 
 

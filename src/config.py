@@ -144,15 +144,12 @@ COOKIE_SERVICE_DOMAINS: Dict[str, tuple[str, ...]] = {
     "youtube": (".youtube.com", "youtube.com", ".google.com", "google.com", ".youtu.be", "youtu.be"),
     "tiktok": (".tiktok.com", "tiktok.com", ".www.tiktok.com", "www.tiktok.com", ".vm.tiktok.com", "vm.tiktok.com"),
     "instagram": (".instagram.com", "instagram.com", ".www.instagram.com", "www.instagram.com"),
-    "spotify": (".spotify.com", "spotify.com", ".open.spotify.com", "open.spotify.com"),
 }
 
 COOKIE_FILENAMES: Dict[str, str] = {
     "youtube": "youtube.cookies.txt",
     "tiktok": "tiktok.cookies.txt",
     "instagram": "instagram.cookies.txt",
-    "spotify": "spotify.cookies.txt",
-    "global": "global.cookies.txt",
 }
 
 MESSAGES = {

@@ -86,7 +86,13 @@ Best practice:
 
 - export one full `cookies.txt`
 - send it to the bot without renaming fields or editing it manually
-- the bot will split entries by service domain for YouTube, TikTok, Instagram, Spotify, and a global fallback file
+- the bot will split and merge entries by service domain for YouTube, TikTok, and Instagram
+- unsupported domains are ignored and a file with only unrelated cookies is rejected
+
+Notes:
+
+- Spotify cookies are not required in the current implementation
+- Spotify downloads currently rely on YouTube matching and YouTube-side download access
 
 The bot validates the file, splits cookies by service domain, and stores service-specific cookie files automatically. Use `/cookies` to inspect the current state.
 
