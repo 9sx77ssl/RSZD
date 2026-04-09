@@ -1,6 +1,4 @@
-"""
-Application configuration loaded from environment variables and .env files.
-"""
+"""Application configuration loaded from environment variables and .env files."""
 
 from __future__ import annotations
 

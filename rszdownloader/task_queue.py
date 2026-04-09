@@ -1,6 +1,4 @@
-"""
-FIFO queue system per user.
-"""
+"""FIFO queue system per user."""
 
 from __future__ import annotations
 

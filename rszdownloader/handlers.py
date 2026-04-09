@@ -12,10 +12,10 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.types import FSInputFile, InputMediaPhoto, KeyboardButton, Message, ReplyKeyboardMarkup
 
-from config import ADMIN_IDS, BUTTON_START, COOKIES_DIR, MESSAGES, TELEGRAM_FILE_SIZE_LIMIT
-from cookie_manager import CookieImportError, get_cookie_status_lines, import_cookie_file
-from db import db
-from downloader import (
+from rszdownloader.config import ADMIN_IDS, BUTTON_START, COOKIES_DIR, MESSAGES, TELEGRAM_FILE_SIZE_LIMIT
+from rszdownloader.cookie_manager import CookieImportError, get_cookie_status_lines, import_cookie_file
+from rszdownloader.db import db
+from rszdownloader.downloader import (
     DownloadError,
     DownloadPackage,
     DurationExceededError,
@@ -26,7 +26,7 @@ from downloader import (
     extract_url,
     validate_url,
 )
-from task_queue import QueueTask, queue_manager
+from rszdownloader.task_queue import QueueTask, queue_manager
 
 
 router = Router()

@@ -17,6 +17,15 @@ log_ok() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+resolve_runtime_path() {
+    local raw_path="$1"
+    if [[ "${raw_path}" = /* ]]; then
+        printf '%s\n' "${raw_path}"
+    else
+        printf '%s/%s\n' "${INSTALL_DIR}" "${raw_path}"
+    fi
+}
+
 require_root() {
     if [[ "${EUID}" -ne 0 ]]; then
         log_error "Run install.sh with sudo or as root."
@@ -74,6 +83,8 @@ load_env() {
     SERVICE_NAME="${SERVICE_NAME:-rsz-downloader}"
     DOWNLOAD_DIR="${DOWNLOAD_DIR:-downloads}"
     COOKIES_DIR="${COOKIES_DIR:-cookies}"
+    RUNTIME_DOWNLOAD_DIR="$(resolve_runtime_path "${DOWNLOAD_DIR}")"
+    RUNTIME_COOKIES_DIR="$(resolve_runtime_path "${COOKIES_DIR}")"
 }
 
 install_system_packages() {
@@ -104,7 +115,7 @@ sync_project() {
         "${SCRIPT_DIR}/" "${INSTALL_DIR}/"
 
     install -m 600 "${ENV_FILE}" "${INSTALL_DIR}/.env"
-    mkdir -p "${INSTALL_DIR}/${DOWNLOAD_DIR}" "${INSTALL_DIR}/${COOKIES_DIR}"
+    mkdir -p "${RUNTIME_DOWNLOAD_DIR}" "${RUNTIME_COOKIES_DIR}"
     log_ok "Project synced"
 }
 

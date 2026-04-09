@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import aiosqlite
 
-from config import DATABASE_PATH, FILE_CLEANUP_DELAY
+from rszdownloader.config import DATABASE_PATH, FILE_CLEANUP_DELAY
 
 
 class Database:

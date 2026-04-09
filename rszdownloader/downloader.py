@@ -10,15 +10,16 @@ import json
 import os
 import re
 import urllib.request
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional, TypedDict
 from urllib.parse import urlparse
 
 import yt_dlp
 
-from config import DOWNLOAD_DIR, TELEGRAM_FILE_SIZE_LIMIT, YOUTUBE_MAX_DURATION
-from cookie_manager import get_cookie_path
+from rszdownloader.config import DOWNLOAD_DIR, TELEGRAM_FILE_SIZE_LIMIT, YOUTUBE_MAX_DURATION
+from rszdownloader.cookie_manager import get_cookie_path
 
 
 class DownloadError(Exception):
@@ -40,7 +41,7 @@ class FileTooLargeError(Exception):
 @dataclass
 class DownloadPackage:
     files: list[str]
-    send_as: str
+    send_as: Literal["audio", "video", "media_group"]
     title: str
     performer: Optional[str] = None
     thumbnail: Optional[str] = None
@@ -52,7 +53,9 @@ class DownloadPackage:
 
 URL_REGEX = re.compile(r"https?://[^\s<>{}\"|\\^`\[\]]+")
 
-SERVICE_HOSTS = {
+ServiceName = Literal["youtube", "tiktok", "spotify"]
+
+SERVICE_HOSTS: dict[ServiceName, set[str]] = {
     "youtube": {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"},
     "tiktok": {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com"},
     "spotify": {"open.spotify.com"},
@@ -85,7 +88,7 @@ def _normalized_host(url: str) -> Optional[str]:
         return None
 
 
-def detect_service(url: str) -> Optional[str]:
+def detect_service(url: str) -> Optional[ServiceName]:
     host = _normalized_host(url)
     if not host:
         return None
@@ -94,6 +97,24 @@ def detect_service(url: str) -> Optional[str]:
             if host == allowed or host.endswith(f".{allowed}"):
                 return service
     return None
+
+
+class SpotifyMetadata(TypedDict):
+    title: Optional[str]
+    thumbnail_url: Optional[str]
+
+
+@dataclass(frozen=True)
+class ServiceHandler:
+    name: ServiceName
+    download: Callable[[str], Awaitable[DownloadPackage]]
+
+
+SERVICE_REGISTRY: dict[ServiceName, ServiceHandler] = {}
+
+
+def register_service(handler: ServiceHandler) -> None:
+    SERVICE_REGISTRY[handler.name] = handler
 
 
 def validate_url(url: str) -> bool:
@@ -348,8 +369,8 @@ async def download_youtube(url: str) -> DownloadPackage:
     )
 
 
-def _fetch_spotify_metadata(url: str) -> Dict[str, Optional[str]]:
-    result = {"title": None, "thumbnail_url": None}
+def _fetch_spotify_metadata(url: str) -> SpotifyMetadata:
+    result: SpotifyMetadata = {"title": None, "thumbnail_url": None}
     try:
         oembed_url = f"https://open.spotify.com/oembed?url={url}"
         req = urllib.request.Request(oembed_url, headers={"User-Agent": _next_user_agent()})
@@ -478,11 +499,13 @@ async def download_spotify(url: str) -> DownloadPackage:
     )
 
 
+register_service(ServiceHandler(name="tiktok", download=download_tiktok))
+register_service(ServiceHandler(name="youtube", download=download_youtube))
+register_service(ServiceHandler(name="spotify", download=download_spotify))
+
+
 async def download_media(url: str, service: str) -> DownloadPackage:
-    if service == "tiktok":
-        return await download_tiktok(url)
-    if service == "youtube":
-        return await download_youtube(url)
-    if service == "spotify":
-        return await download_spotify(url)
+    handler = SERVICE_REGISTRY.get(service)  # type: ignore[arg-type]
+    if handler:
+        return await handler.download(url)
     raise UnsupportedUrlError(f"Service '{service}' not supported")

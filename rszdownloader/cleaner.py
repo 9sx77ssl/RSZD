@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from config import CLEANUP_INTERVAL, DOWNLOAD_DIR
+from rszdownloader.config import CLEANUP_INTERVAL, DOWNLOAD_DIR
 
 
 def _extract_paths(raw_value: str | None) -> list[Path]:

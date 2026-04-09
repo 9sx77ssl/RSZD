@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List
 
-from config import COOKIE_FILENAMES, COOKIE_SERVICE_DOMAINS, COOKIES_DIR
+from rszdownloader.config import COOKIE_FILENAMES, COOKIE_SERVICE_DOMAINS, COOKIES_DIR
 
 
 class CookieImportError(Exception):
