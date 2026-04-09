@@ -10,7 +10,7 @@ import sys
 from datetime import datetime
 from typing import Callable, Optional, Tuple
 
-from rszdownloader.config import AUTO_UPDATE_YTDLP, YTDLP_UPDATE_INTERVAL
+from src.config import AUTO_UPDATE_YTDLP, YTDLP_UPDATE_INTERVAL
 
 
 class AutoUpdater:

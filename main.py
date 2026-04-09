@@ -1,6 +1,6 @@
 """Thin executable wrapper for the packaged bot."""
 
-from rszdownloader.app import run_bot
+from src.app import run_bot
 
 
 if __name__ == "__main__":

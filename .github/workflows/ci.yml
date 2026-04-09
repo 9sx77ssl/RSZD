@@ -32,9 +32,9 @@ jobs:
         run: |
           python - <<'PY'
           import main
-          import rszdownloader
-          import rszdownloader.downloader
-          import rszdownloader.handlers
+          import src
+          import src.downloader
+          import src.handlers
           print("imports ok")
           PY
 

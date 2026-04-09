@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from rszdownloader.config import COOKIES_DIR
-from rszdownloader.cookie_manager import get_cookie_path, import_cookie_file
+from src.config import COOKIES_DIR
+from src.cookie_manager import get_cookie_path, import_cookie_file
 
 
 def test_import_cookie_file_splits_services(tmp_path: Path):

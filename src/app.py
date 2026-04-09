@@ -11,12 +11,12 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from rszdownloader.auto_updater import start_auto_updater, stop_auto_updater
-from rszdownloader.cleaner import start_cleanup_task, stop_cleanup_task
-from rszdownloader.config import BOT_TOKEN
-from rszdownloader.db import db, init_db
-from rszdownloader.handlers import router, set_bot
-from rszdownloader.task_queue import queue_manager
+from src.auto_updater import start_auto_updater, stop_auto_updater
+from src.cleaner import start_cleanup_task, stop_cleanup_task
+from src.config import BOT_TOKEN
+from src.db import db, init_db
+from src.handlers import router, set_bot
+from src.task_queue import queue_manager
 
 
 _restart_requested = False
@@ -108,4 +108,3 @@ def run_bot():
             import time
 
             time.sleep(5)
-

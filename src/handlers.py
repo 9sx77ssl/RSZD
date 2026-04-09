@@ -1,6 +1,4 @@
-"""
-Telegram message handlers using aiogram 3.
-"""
+"""Telegram message handlers using aiogram 3."""
 
 from __future__ import annotations
 
@@ -12,10 +10,10 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.types import FSInputFile, InputMediaPhoto, KeyboardButton, Message, ReplyKeyboardMarkup
 
-from rszdownloader.config import ADMIN_IDS, BUTTON_START, COOKIES_DIR, MESSAGES, TELEGRAM_FILE_SIZE_LIMIT
-from rszdownloader.cookie_manager import CookieImportError, get_cookie_status_lines, import_cookie_file
-from rszdownloader.db import db
-from rszdownloader.downloader import (
+from src.config import ADMIN_IDS, BUTTON_START, COOKIES_DIR, MESSAGES, TELEGRAM_FILE_SIZE_LIMIT
+from src.cookie_manager import CookieImportError, get_cookie_status_lines, import_cookie_file
+from src.db import db
+from src.downloader import (
     DownloadError,
     DownloadPackage,
     DurationExceededError,
@@ -26,7 +24,7 @@ from rszdownloader.downloader import (
     extract_url,
     validate_url,
 )
-from rszdownloader.task_queue import QueueTask, queue_manager
+from src.task_queue import QueueTask, queue_manager
 
 
 router = Router()
@@ -78,7 +76,7 @@ async def handle_document(message: Message, bot: Bot):
         file = await bot.get_file(doc.file_id)
         await bot.download_file(file.file_path, temp_path)
         result = import_cookie_file(temp_path, doc.file_name)
-        services = ", ".join(f"{service} ({count})" for service, count in sorted(result.service_counts.items())) or "нет распознанных сервисов"
+        services = ", ".join(f"{service} ({count})" for service, count in sorted(result.service_counts.items())) or "none"
         await message.answer(
             MESSAGES["cookies_updated"].format(
                 filename=result.filename,
@@ -110,6 +108,10 @@ async def handle_message(message: Message, bot: Bot):
     service = detect_service(url)
     if not service:
         await message.answer(MESSAGES["error_unsupported"], parse_mode=ParseMode.HTML)
+        return
+
+    if await db.has_active_task(message.from_user.id, url, service):
+        await message.answer(MESSAGES["already_queued"], parse_mode=ParseMode.HTML)
         return
 
     status_msg = await message.answer(MESSAGES["processing"], parse_mode=ParseMode.HTML)
@@ -144,10 +146,48 @@ async def handle_message(message: Message, bot: Bot):
 def _cleanup_download_package(package: DownloadPackage | None):
     if not package:
         return
-    for file_path in package.files:
-        Path(file_path).unlink(missing_ok=True)
     if package.thumbnail:
         Path(package.thumbnail).unlink(missing_ok=True)
+
+
+def _package_to_json(package: DownloadPackage) -> str:
+    return json.dumps(
+        {
+            "files": package.files,
+            "send_as": package.send_as,
+            "title": package.title,
+            "performer": package.performer,
+            "thumbnail": package.thumbnail,
+        }
+    )
+
+
+async def _send_package(bot: Bot, chat_id: int, package: DownloadPackage):
+    if package.send_as == "audio":
+        await bot.send_audio(
+            chat_id=chat_id,
+            audio=FSInputFile(package.primary_path),
+            title=package.title,
+            performer=package.performer,
+            thumbnail=FSInputFile(package.thumbnail) if package.thumbnail and Path(package.thumbnail).exists() else None,
+        )
+        return
+
+    if package.send_as == "media_group":
+        media = [
+            InputMediaPhoto(media=FSInputFile(file_path), caption=package.title if index == 0 else None)
+            for index, file_path in enumerate(package.files)
+        ]
+        await bot.send_media_group(chat_id=chat_id, media=media)
+        return
+
+    await bot.send_video(
+        chat_id=chat_id,
+        video=FSInputFile(package.primary_path),
+        thumbnail=FSInputFile(package.thumbnail) if package.thumbnail and Path(package.thumbnail).exists() else None,
+        supports_streaming=True,
+        caption=package.title[:1024],
+    )
 
 
 async def process_task(task: QueueTask):
@@ -159,6 +199,7 @@ async def process_task(task: QueueTask):
     chat_id = task.chat_id
     message_id = task.message_id
     package: DownloadPackage | None = None
+    served_from_cache = False
 
     async def edit_status(text: str):
         try:
@@ -181,39 +222,27 @@ async def process_task(task: QueueTask):
         await db.update_task_status(task.task_id, "downloading")
         await edit_status(MESSAGES["downloading"])
 
-        package = await download_media(task.url, task.service)
-        for file_path in package.files:
-            if Path(file_path).exists() and Path(file_path).stat().st_size > TELEGRAM_FILE_SIZE_LIMIT:
-                raise FileTooLargeError("Payload file too large")
+        package = await db.get_cached_download(task.service, task.url)
+        if package and all(Path(file_path).exists() for file_path in package.files):
+            served_from_cache = True
+            await edit_status(MESSAGES["served_from_cache"])
+        else:
+            package = await download_media(task.url, task.service)
+            for file_path in package.files:
+                if Path(file_path).exists() and Path(file_path).stat().st_size > TELEGRAM_FILE_SIZE_LIMIT:
+                    raise FileTooLargeError("Payload file too large")
+            await db.cache_download(task.service, task.url, package)
 
-        await db.update_task_status(task.task_id, "downloaded", json.dumps(package.files))
-        await edit_status(MESSAGES["sending"])
+        await db.update_task_status(task.task_id, "downloaded", _package_to_json(package))
+        if not served_from_cache:
+            await edit_status(MESSAGES["sending"])
         await db.update_task_status(task.task_id, "sending")
 
-        if package.send_as == "audio":
-            await _bot.send_audio(
-                chat_id=chat_id,
-                audio=FSInputFile(package.primary_path),
-                title=package.title,
-                performer=package.performer,
-                thumbnail=FSInputFile(package.thumbnail) if package.thumbnail and Path(package.thumbnail).exists() else None,
-            )
-        elif package.send_as == "media_group":
-            media = [InputMediaPhoto(media=FSInputFile(file_path), caption=package.title if index == 0 else None) for index, file_path in enumerate(package.files)]
-            await _bot.send_media_group(chat_id=chat_id, media=media)
-        else:
-            await _bot.send_video(
-                chat_id=chat_id,
-                video=FSInputFile(package.primary_path),
-                thumbnail=FSInputFile(package.thumbnail) if package.thumbnail and Path(package.thumbnail).exists() else None,
-                supports_streaming=True,
-                caption=package.title[:1024],
-            )
+        await _send_package(_bot, chat_id, package)
 
         await db.mark_task_sent(task.task_id)
         await delete_status()
-        if package.thumbnail:
-            Path(package.thumbnail).unlink(missing_ok=True)
+        _cleanup_download_package(package)
     except DurationExceededError:
         await db.update_task_status(task.task_id, "error")
         await edit_status(MESSAGES["error_duration"])

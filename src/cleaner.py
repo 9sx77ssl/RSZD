@@ -1,6 +1,4 @@
-"""
-Background file cleanup task.
-"""
+"""Background cleanup task."""
 
 from __future__ import annotations
 
@@ -9,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from rszdownloader.config import CLEANUP_INTERVAL, DOWNLOAD_DIR
+from src.config import CLEANUP_INTERVAL, DOWNLOAD_DIR
 
 
 def _extract_paths(raw_value: str | None) -> list[Path]:
@@ -55,19 +53,23 @@ class CleanupManager:
                 print(f"[Cleanup] Loop error: {exc}")
 
     async def _perform_cleanup(self, db):
-        tasks = await db.get_tasks_for_cleanup()
-        for task in tasks:
-            for path in _extract_paths(task.get("file_path")):
+        cached_entries = await db.get_cached_downloads_for_cleanup()
+        for entry in cached_entries:
+            for path in _extract_paths(entry.get("file_paths")):
                 if path.exists():
                     try:
                         path.unlink()
-                        print(f"[Cleanup] Deleted file: {path}")
+                        print(f"[Cleanup] Deleted cached file: {path}")
                     except OSError as exc:
                         print(f"[Cleanup] Failed to delete {path}: {exc}")
+            await db.delete_cached_download(entry["service"], entry["url"])
+            print(f"[Cleanup] Deleted cache entry: {entry['service']} {entry['url']}")
+
+        tasks = await db.get_tasks_for_cleanup()
+        for task in tasks:
             await db.delete_task(task["id"])
             print(f"[Cleanup] Deleted task record: {task['id']}")
 
-        # Best-effort cleanup for orphan temporary files left in downloads.
         for path in DOWNLOAD_DIR.iterdir():
             if not path.is_file():
                 continue

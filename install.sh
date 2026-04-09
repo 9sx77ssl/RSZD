@@ -79,7 +79,7 @@ load_env() {
         exit 1
     fi
 
-    INSTALL_DIR="${INSTALL_DIR:-/opt/rszdownloader}"
+    INSTALL_DIR="${INSTALL_DIR:-/opt/rszd}"
     SERVICE_NAME="${SERVICE_NAME:-rsz-downloader}"
     DOWNLOAD_DIR="${DOWNLOAD_DIR:-downloads}"
     COOKIES_DIR="${COOKIES_DIR:-cookies}"

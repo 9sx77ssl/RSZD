@@ -18,8 +18,8 @@ from urllib.parse import urlparse
 
 import yt_dlp
 
-from rszdownloader.config import DOWNLOAD_DIR, TELEGRAM_FILE_SIZE_LIMIT, YOUTUBE_MAX_DURATION
-from rszdownloader.cookie_manager import get_cookie_path
+from src.config import DOWNLOAD_DIR, TELEGRAM_FILE_SIZE_LIMIT, YOUTUBE_MAX_DURATION
+from src.cookie_manager import get_cookie_path
 
 
 class DownloadError(Exception):

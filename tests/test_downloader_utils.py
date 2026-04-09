@@ -1,4 +1,4 @@
-from rszdownloader.downloader import detect_service, extract_url, validate_url
+from src.downloader import detect_service, extract_url, validate_url
 
 
 def test_extract_url():

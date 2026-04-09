@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Dict, List
 
 
-BASE_DIR = Path(__file__).resolve().parent
+PACKAGE_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = PACKAGE_DIR.parent
 
 
 def _load_dotenv() -> None:
     """Load a local .env file without overriding exported environment values."""
-    env_path = BASE_DIR / ".env"
+    env_path = PROJECT_DIR / ".env"
     if not env_path.exists():
         return
 
@@ -63,7 +64,7 @@ def _resolve_path(name: str, default: str) -> Path:
     raw = os.getenv(name, default).strip()
     path = Path(raw)
     if not path.is_absolute():
-        path = BASE_DIR / path
+        path = PROJECT_DIR / path
     return path
 
 
@@ -108,7 +109,7 @@ AUTO_UPDATE_YTDLP = _get_bool("AUTO_UPDATE_YTDLP", False)
 TELEGRAM_FILE_SIZE_LIMIT = _get_int("TELEGRAM_FILE_SIZE_LIMIT", 50 * 1024 * 1024)
 COOKIE_AUTO_IMPORT = _get_bool("COOKIE_AUTO_IMPORT", True)
 SERVICE_NAME = os.getenv("SERVICE_NAME", "rsz-downloader").strip() or "rsz-downloader"
-INSTALL_DIR = os.getenv("INSTALL_DIR", str(BASE_DIR)).strip() or str(BASE_DIR)
+INSTALL_DIR = os.getenv("INSTALL_DIR", str(PROJECT_DIR)).strip() or str(PROJECT_DIR)
 
 if YOUTUBE_MAX_DURATION <= 0:
     raise RuntimeError("YOUTUBE_MAX_DURATION must be positive")
@@ -153,28 +154,32 @@ COOKIE_FILENAMES: Dict[str, str] = {
 }
 
 MESSAGES = {
-    "start": "<b>RSZDownloader</b>\n\n"
-             "Отправь мне ссылку и я скачаю файл:\n\n"
-             "• TikTok — видео и фото-посты\n"
-             "• YouTube — видео и Shorts\n"
-             "• Spotify — аудио трек\n\n"
-             "<i>Админ может просто отправить cookies.txt документом</i>",
-    "processing": "⏳ <b>Обработка...</b>",
-    "downloading": "📥 <b>Скачивание...</b>",
-    "sending": "📤 <b>Отправка...</b>",
-    "queued": "🕐 <b>В очереди:</b> {position}/{total}",
-    "error_unsupported": "❌ <b>Ошибка</b>\n\nНеподдерживаемая ссылка",
-    "error_duration": "❌ <b>Ошибка</b>\n\nВидео длиннее лимита",
-    "error_download": "❌ <b>Ошибка</b>\n\nНе удалось скачать",
-    "error_file_size": "❌ <b>Ошибка</b>\n\nФайл больше лимита Telegram",
-    "error_generic": "❌ <b>Ошибка</b>\n\n{reason}",
-    "cookies_updated": "🍪 <b>Куки обновлены</b>\n\n"
-                       "Файл: <code>{filename}</code>\n"
-                       "Строк: {lines}\n"
-                       "Сервисы: {services}",
-    "cookies_error": "❌ <b>Ошибка куков</b>\n\n{reason}",
-    "cookies_status": "🍪 <b>Статус куков</b>\n\n{details}",
-    "cookies_no_permission": "❌ У тебя нет прав на загрузку куков",
+    "start": (
+        "<b>RSZDownloader</b>\n"
+        "<blockquote>Clean downloads for TikTok, YouTube, Shorts, and Spotify.</blockquote>\n\n"
+        "Send a link and the bot will handle the rest.\n"
+        "Admins can upload <code>cookies.txt</code> directly when needed."
+    ),
+    "processing": "<b>Preparing request</b>\n<blockquote>Please wait.</blockquote>",
+    "queued": "<b>Queued</b>\n<blockquote>Position {position} of {total}</blockquote>",
+    "already_queued": "<b>Already queued</b>\n<blockquote>This link is already being processed.</blockquote>",
+    "downloading": "<b>Downloading</b>\n<blockquote>Fetching the media now.</blockquote>",
+    "sending": "<b>Sending</b>\n<blockquote>Uploading the result.</blockquote>",
+    "served_from_cache": "<b>Ready instantly</b>\n<blockquote>Reused a recent download.</blockquote>",
+    "error_unsupported": "<b>Request rejected</b>\n<blockquote>This link is not supported.</blockquote>",
+    "error_duration": "<b>Too long</b>\n<blockquote>This YouTube video is above the configured duration limit.</blockquote>",
+    "error_download": "<b>Download failed</b>\n<blockquote>The source could not be downloaded right now.</blockquote>",
+    "error_file_size": "<b>Too large</b>\n<blockquote>The file is above the Telegram size limit.</blockquote>",
+    "error_generic": "<b>Operation failed</b>\n<blockquote>{reason}</blockquote>",
+    "cookies_updated": (
+        "<b>Cookies imported</b>\n"
+        "<blockquote>File: <code>{filename}</code>\n"
+        "Entries: {lines}\n"
+        "Targets: {services}</blockquote>"
+    ),
+    "cookies_error": "<b>Cookie import failed</b>\n<blockquote>{reason}</blockquote>",
+    "cookies_status": "<b>Cookie status</b>\n<blockquote>{details}</blockquote>",
+    "cookies_no_permission": "<b>Access denied</b>\n<blockquote>You are not allowed to upload cookies.</blockquote>",
 }
 
-BUTTON_START = "🔄 Start"
+BUTTON_START = "Start"

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List
 
-from rszdownloader.config import COOKIE_FILENAMES, COOKIE_SERVICE_DOMAINS, COOKIES_DIR
+from src.config import COOKIE_FILENAMES, COOKIE_SERVICE_DOMAINS, COOKIES_DIR
 
 
 class CookieImportError(Exception):
@@ -58,10 +58,10 @@ def _parse_json(content: str) -> List[List[str]]:
     try:
         cookies = json.loads(content)
     except json.JSONDecodeError as exc:
-        raise CookieImportError("Нужен Netscape cookies.txt или JSON-массив cookies") from exc
+        raise CookieImportError("Expected Netscape cookies.txt or a JSON cookie array") from exc
 
     if not isinstance(cookies, list):
-        raise CookieImportError("JSON cookies должен быть массивом объектов")
+        raise CookieImportError("JSON cookies must be an array of objects")
 
     entries: List[List[str]] = []
     for cookie in cookies:
@@ -91,7 +91,7 @@ def _ensure_entries(content: str) -> List[List[str]]:
     entries = _parse_json(content)
     if entries:
         return entries
-    raise CookieImportError("Файл не содержит валидных cookies")
+    raise CookieImportError("The file does not contain valid cookies")
 
 
 def _write_cookie_file(path: Path, entries: Iterable[str]) -> int:
@@ -150,5 +150,5 @@ def get_cookie_status_lines() -> List[str]:
             )
             details.append(f"• {service}: {count} cookies")
         else:
-            details.append(f"• {service}: нет файла")
+            details.append(f"• {service}: no file")
     return details
