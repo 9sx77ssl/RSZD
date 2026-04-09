@@ -17,6 +17,12 @@ log_ok() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+APT_SAFE_OPTS=(
+    -o APT::Update::Post-Invoke-Success::=
+    -o APT::Update::Post-Invoke::=
+    -o DPkg::Post-Invoke::=
+)
+
 resolve_runtime_path() {
     local raw_path="$1"
     if [[ "${raw_path}" = /* ]]; then
@@ -89,8 +95,8 @@ load_env() {
 
 install_system_packages() {
     log_info "Installing system dependencies..."
-    apt-get update -y
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    apt-get "${APT_SAFE_OPTS[@]}" update -y
+    DEBIAN_FRONTEND=noninteractive apt-get "${APT_SAFE_OPTS[@]}" install -y \
         python3 \
         python3-venv \
         python3-pip \
