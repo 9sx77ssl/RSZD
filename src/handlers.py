@@ -175,7 +175,7 @@ async def _send_package(bot: Bot, chat_id: int, package: DownloadPackage):
 
     if package.send_as == "media_group":
         media = [
-            InputMediaPhoto(media=FSInputFile(file_path), caption=package.title if index == 0 else None)
+            InputMediaPhoto(media=FSInputFile(file_path))
             for index, file_path in enumerate(package.files)
         ]
         await bot.send_media_group(chat_id=chat_id, media=media)
@@ -186,7 +186,6 @@ async def _send_package(bot: Bot, chat_id: int, package: DownloadPackage):
         video=FSInputFile(package.primary_path),
         thumbnail=FSInputFile(package.thumbnail) if package.thumbnail and Path(package.thumbnail).exists() else None,
         supports_streaming=True,
-        caption=package.title[:1024],
     )
 
 

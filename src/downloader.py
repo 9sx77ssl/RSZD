@@ -252,6 +252,7 @@ async def download_tiktok(url: str) -> DownloadPackage:
             "outtmpl": str(DOWNLOAD_DIR / (f"{post_id}_%(autonumber)s.%(ext)s" if has_gallery else f"{post_id}.%(ext)s")),
             "noplaylist": not has_gallery,
             "writethumbnail": False,
+            "remux_video": "mp4",
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.extract_info(url, download=True)
@@ -316,6 +317,7 @@ async def download_instagram(url: str) -> DownloadPackage:
             "outtmpl": str(DOWNLOAD_DIR / (f"{post_id}_%(autonumber)s.%(ext)s" if has_gallery else f"{post_id}.%(ext)s")),
             "noplaylist": not has_gallery,
             "writethumbnail": False,
+            "remux_video": "mp4",
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.extract_info(url, download=True)
