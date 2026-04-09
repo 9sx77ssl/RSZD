@@ -228,6 +228,11 @@ def _delete_paths(paths: list[Path]):
                 pass
 
 
+def _is_tiktok_photo_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return "/photo/" in (parsed.path or "")
+
+
 async def download_tiktok(url: str) -> DownloadPackage:
     print("[TikTok] Fetching post metadata...")
     loop = asyncio.get_running_loop()
@@ -239,7 +244,7 @@ async def download_tiktok(url: str) -> DownloadPackage:
                     return ydl.extract_info(url, download=False)
             except Exception:
                 continue
-        raise DownloadError("TikTok: не удалось получить информацию о посте")
+        raise DownloadError("TikTok: could not fetch post metadata")
 
     info = await loop.run_in_executor(None, _get_info)
     post_id = info.get("id", "tiktok")
@@ -253,6 +258,7 @@ async def download_tiktok(url: str) -> DownloadPackage:
             "noplaylist": not has_gallery,
             "writethumbnail": False,
             "remux_video": "mp4",
+            "format_sort": ["ext:mp4", "vcodec:h264", "acodec:aac"],
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.extract_info(url, download=True)
@@ -318,6 +324,7 @@ async def download_instagram(url: str) -> DownloadPackage:
             "noplaylist": not has_gallery,
             "writethumbnail": False,
             "remux_video": "mp4",
+            "format_sort": ["ext:mp4", "vcodec:h264", "acodec:aac"],
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.extract_info(url, download=True)
@@ -569,6 +576,11 @@ register_service(ServiceHandler(name="spotify", download=download_spotify))
 
 
 async def download_media(url: str, service: str) -> DownloadPackage:
+    if service == "tiktok" and _is_tiktok_photo_url(url):
+        raise DownloadError(
+            "TikTok photo posts are currently limited by TikTok web access. "
+            "Standard TikTok videos still work normally."
+        )
     handler = SERVICE_REGISTRY.get(service)  # type: ignore[arg-type]
     if handler:
         return await handler.download(url)
