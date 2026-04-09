@@ -144,18 +144,22 @@ COOKIE_SERVICE_DOMAINS: Dict[str, tuple[str, ...]] = {
     "youtube": (".youtube.com", "youtube.com", ".google.com", "google.com", ".youtu.be", "youtu.be"),
     "tiktok": (".tiktok.com", "tiktok.com", ".www.tiktok.com", "www.tiktok.com", ".vm.tiktok.com", "vm.tiktok.com"),
     "instagram": (".instagram.com", "instagram.com", ".www.instagram.com", "www.instagram.com"),
+    "twitch": (".twitch.tv", "twitch.tv", ".clips.twitch.tv", "clips.twitch.tv", ".www.twitch.tv", "www.twitch.tv"),
+    "pornhub": (".pornhub.com", "pornhub.com", ".www.pornhub.com", "www.pornhub.com"),
 }
 
 COOKIE_FILENAMES: Dict[str, str] = {
     "youtube": "youtube.cookies.txt",
     "tiktok": "tiktok.cookies.txt",
     "instagram": "instagram.cookies.txt",
+    "twitch": "twitch.cookies.txt",
+    "pornhub": "pornhub.cookies.txt",
 }
 
 MESSAGES = {
     "start": (
         "<b>RSZD</b>\n"
-        "<blockquote>Clean downloads for TikTok, Instagram, YouTube, Shorts, and Spotify.</blockquote>\n\n"
+        "<blockquote>Clean downloads for TikTok, Instagram, YouTube, Shorts, Twitch Clips, PornHub, and Spotify.</blockquote>\n\n"
         "Send a link and the bot will handle the rest."
     ),
     "processing": "<b>Preparing request</b>\n<blockquote>Please wait.</blockquote>",

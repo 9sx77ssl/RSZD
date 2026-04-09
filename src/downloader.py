@@ -53,12 +53,14 @@ class DownloadPackage:
 
 URL_REGEX = re.compile(r"https?://[^\s<>{}\"|\\^`\[\]]+")
 
-ServiceName = Literal["youtube", "tiktok", "instagram", "spotify"]
+ServiceName = Literal["youtube", "tiktok", "instagram", "twitch", "pornhub", "spotify"]
 
 SERVICE_HOSTS: dict[ServiceName, set[str]] = {
     "youtube": {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"},
     "tiktok": {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com"},
     "instagram": {"instagram.com", "www.instagram.com"},
+    "twitch": {"clips.twitch.tv"},
+    "pornhub": {"pornhub.com", "www.pornhub.com"},
     "spotify": {"open.spotify.com"},
 }
 
@@ -93,6 +95,9 @@ def detect_service(url: str) -> Optional[ServiceName]:
     host = _normalized_host(url)
     if not host:
         return None
+    path = urlparse(url).path or ""
+    if host == "clips.twitch.tv" or (host in {"twitch.tv", "www.twitch.tv"} and "/clip/" in path):
+        return "twitch"
     for service, allowed_hosts in SERVICE_HOSTS.items():
         for allowed in allowed_hosts:
             if host == allowed or host.endswith(f".{allowed}"):
@@ -196,6 +201,10 @@ def get_base_opts(service: str, use_cookies: bool = True, source_address: Option
     return opts
 
 
+def _cookie_attempts(service: ServiceName) -> list[bool]:
+    return [True, False] if get_cookie_path(service) else [False]
+
+
 def is_retryable_error(error_str: str) -> bool:
     error_lower = error_str.lower()
     return any(token in error_lower for token in ("403", "429", "rate", "too many", "temporary", "timeout", "connection"))
@@ -233,20 +242,99 @@ def _is_tiktok_photo_url(url: str) -> bool:
     return "/photo/" in (parsed.path or "")
 
 
-async def download_tiktok(url: str) -> DownloadPackage:
-    print("[TikTok] Fetching post metadata...")
+async def _extract_info_with_fallback(service: ServiceName, url: str, extra_opts: Optional[dict] = None) -> dict:
     loop = asyncio.get_running_loop()
 
     def _get_info():
-        for use_cookies in (True, False):
+        for use_cookies in _cookie_attempts(service):
             try:
-                with yt_dlp.YoutubeDL(get_base_opts("tiktok", use_cookies=use_cookies)) as ydl:
+                opts = {**get_base_opts(service, use_cookies=use_cookies), **(extra_opts or {})}
+                with yt_dlp.YoutubeDL(opts) as ydl:
                     return ydl.extract_info(url, download=False)
             except Exception:
                 continue
-        raise DownloadError("TikTok: could not fetch post metadata")
+        raise DownloadError(f"{service.capitalize()}: could not fetch media metadata")
 
-    info = await loop.run_in_executor(None, _get_info)
+    return await loop.run_in_executor(None, _get_info)
+
+
+async def _download_single_video_service(
+    service: ServiceName,
+    url: str,
+    *,
+    output_prefix: str,
+    title: str,
+    info_opts: Optional[dict] = None,
+    download_opts: Optional[dict] = None,
+) -> DownloadPackage:
+    loop = asyncio.get_running_loop()
+    info = await _extract_info_with_fallback(service, url, info_opts)
+    media_id = info.get("id", output_prefix)
+    title = info.get("title") or title
+
+    def _download():
+        last_error = None
+        attempts = [(use_cookies, None) for use_cookies in _cookie_attempts(service)]
+        attempts.append((False, "0.0.0.0"))
+        for use_cookies, source_address in attempts:
+            try:
+                _delete_paths(_collect_downloads(media_id))
+                opts = {
+                    **get_base_opts(service, use_cookies=use_cookies, source_address=source_address),
+                    "outtmpl": str(DOWNLOAD_DIR / f"{media_id}.%(ext)s"),
+                    "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                    "merge_output_format": "mp4",
+                    "remux_video": "mp4",
+                    "format_sort": ["ext:mp4", "vcodec:h264", "acodec:aac"],
+                    "noplaylist": True,
+                    "writethumbnail": True,
+                    **(download_opts or {}),
+                }
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    ydl.download([url])
+                files = _collect_downloads(media_id)
+                if files:
+                    return files, title
+            except Exception as exc:
+                last_error = str(exc)
+                print(f"[{service.capitalize()}] Download attempt failed: {last_error[:120]}")
+                if last_error and is_permanent_error(last_error):
+                    break
+        raise DownloadError(f"{service.capitalize()}: {last_error or 'download failed'}")
+
+    raw_files, resolved_title = await loop.run_in_executor(None, _download)
+    video_files = [path for path in raw_files if path.suffix.lower() in VIDEO_EXTENSIONS]
+    image_files = [path for path in raw_files if path.suffix.lower() in IMAGE_EXTENSIONS]
+    other_files = [path for path in raw_files if path not in video_files + image_files]
+
+    if not video_files:
+        _delete_paths(raw_files)
+        raise DownloadError(f"{service.capitalize()}: output file not found")
+
+    video_path = max(video_files, key=lambda item: item.stat().st_size)
+    thumbnail = image_files[0] if image_files else None
+    renamed_video = _rename_file(video_path, service, resolved_title)
+    renamed_thumbnail = _rename_file(thumbnail, f"{service}_thumb", resolved_title) if thumbnail else None
+    _delete_paths([path for path in video_files if path != video_path] + [path for path in image_files if path != thumbnail] + other_files)
+
+    if renamed_video.stat().st_size > TELEGRAM_FILE_SIZE_LIMIT:
+        renamed_video.unlink(missing_ok=True)
+        if renamed_thumbnail:
+            renamed_thumbnail.unlink(missing_ok=True)
+        raise FileTooLargeError("File exceeds Telegram size limit")
+
+    return DownloadPackage(
+        files=[str(renamed_video)],
+        send_as="video",
+        title=resolved_title,
+        thumbnail=str(renamed_thumbnail) if renamed_thumbnail else None,
+    )
+
+
+async def download_tiktok(url: str) -> DownloadPackage:
+    print("[TikTok] Fetching post metadata...")
+    loop = asyncio.get_running_loop()
+    info = await _extract_info_with_fallback("tiktok", url)
     post_id = info.get("id", "tiktok")
     title = info.get("title") or "tiktok_post"
     has_gallery = bool(info.get("entries")) or info.get("_type") in {"playlist", "multi_video"}
@@ -302,17 +390,7 @@ async def download_tiktok(url: str) -> DownloadPackage:
 async def download_instagram(url: str) -> DownloadPackage:
     print("[Instagram] Fetching post metadata...")
     loop = asyncio.get_running_loop()
-
-    def _get_info():
-        for use_cookies in (True, False):
-            try:
-                with yt_dlp.YoutubeDL(get_base_opts("instagram", use_cookies=use_cookies)) as ydl:
-                    return ydl.extract_info(url, download=False)
-            except Exception:
-                continue
-        raise DownloadError("Instagram: could not fetch post metadata")
-
-    info = await loop.run_in_executor(None, _get_info)
+    info = await _extract_info_with_fallback("instagram", url)
     post_id = info.get("id", "instagram")
     title = info.get("title") or info.get("description") or "instagram_post"
     has_gallery = bool(info.get("entries")) or info.get("_type") in {"playlist", "multi_video"}
@@ -364,17 +442,7 @@ async def download_instagram(url: str) -> DownloadPackage:
 async def download_youtube(url: str) -> DownloadPackage:
     print("[YouTube] Checking video...")
     loop = asyncio.get_running_loop()
-
-    def _get_info():
-        for use_cookies in (True, False):
-            try:
-                with yt_dlp.YoutubeDL({**get_base_opts("youtube", use_cookies=use_cookies), "noplaylist": True}) as ydl:
-                    return ydl.extract_info(url, download=False)
-            except Exception:
-                continue
-        raise DownloadError("YouTube: не удалось получить информацию о видео")
-
-    info = await loop.run_in_executor(None, _get_info)
+    info = await _extract_info_with_fallback("youtube", url, {"noplaylist": True})
     duration = info.get("duration") or 0
     if duration > YOUTUBE_MAX_DURATION:
         raise DurationExceededError(f"Video is {duration} seconds")
@@ -508,32 +576,33 @@ async def download_spotify(url: str) -> DownloadPackage:
     def _download_audio():
         last_error = None
         for candidate in candidates:
-            try:
-                _delete_paths(_collect_downloads(f"spotify_{track_id}"))
-                ydl_opts = {
-                    **get_base_opts("youtube"),
-                    "outtmpl": str(DOWNLOAD_DIR / f"spotify_{track_id}.%(ext)s"),
-                    "format": "bestaudio/best",
-                    "noplaylist": True,
-                    "postprocessors": [
-                        {
-                            "key": "FFmpegExtractAudio",
-                            "preferredcodec": "mp3",
-                            "preferredquality": "192",
-                        }
-                    ],
-                }
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([candidate["url"]])
-                files = _collect_downloads(f"spotify_{track_id}")
-                mp3_files = [path for path in files if path.suffix.lower() == ".mp3"]
-                if mp3_files:
-                    return mp3_files[0]
-            except Exception as exc:
-                last_error = str(exc)
-                print(f"[Spotify] Candidate failed: {last_error[:120]}")
-                if last_error and is_permanent_error(last_error):
-                    continue
+            for use_cookies in _cookie_attempts("youtube"):
+                try:
+                    _delete_paths(_collect_downloads(f"spotify_{track_id}"))
+                    ydl_opts = {
+                        **get_base_opts("youtube", use_cookies=use_cookies),
+                        "outtmpl": str(DOWNLOAD_DIR / f"spotify_{track_id}.%(ext)s"),
+                        "format": "bestaudio/best",
+                        "noplaylist": True,
+                        "postprocessors": [
+                            {
+                                "key": "FFmpegExtractAudio",
+                                "preferredcodec": "mp3",
+                                "preferredquality": "192",
+                            }
+                        ],
+                    }
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([candidate["url"]])
+                    files = _collect_downloads(f"spotify_{track_id}")
+                    mp3_files = [path for path in files if path.suffix.lower() == ".mp3"]
+                    if mp3_files:
+                        return mp3_files[0]
+                except Exception as exc:
+                    last_error = str(exc)
+                    print(f"[Spotify] Candidate failed: {last_error[:120]}")
+                    if last_error and is_permanent_error(last_error):
+                        break
         raise DownloadError(f"Spotify: {last_error or 'не удалось скачать трек'}")
 
     audio_path = await loop.run_in_executor(None, _download_audio)
@@ -569,8 +638,30 @@ async def download_spotify(url: str) -> DownloadPackage:
     )
 
 
+async def download_twitch_clip(url: str) -> DownloadPackage:
+    print("[Twitch] Fetching clip...")
+    return await _download_single_video_service(
+        "twitch",
+        url,
+        output_prefix="twitch",
+        title="twitch_clip",
+    )
+
+
+async def download_pornhub(url: str) -> DownloadPackage:
+    print("[PornHub] Fetching video...")
+    return await _download_single_video_service(
+        "pornhub",
+        url,
+        output_prefix="pornhub",
+        title="pornhub_video",
+    )
+
+
 register_service(ServiceHandler(name="tiktok", download=download_tiktok))
 register_service(ServiceHandler(name="instagram", download=download_instagram))
+register_service(ServiceHandler(name="twitch", download=download_twitch_clip))
+register_service(ServiceHandler(name="pornhub", download=download_pornhub))
 register_service(ServiceHandler(name="youtube", download=download_youtube))
 register_service(ServiceHandler(name="spotify", download=download_spotify))
 

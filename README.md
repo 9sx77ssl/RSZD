@@ -96,6 +96,12 @@ Notes:
 
 The bot validates the file, splits cookies by service domain, and stores service-specific cookie files automatically. Use `/cookies` to inspect the current state.
 
+Cookie behavior:
+
+- the bot works without cookies too
+- when cookies exist, it prefers them first
+- if a request fails with cookies, supported download paths retry without cookies
+
 ## Local Development
 
 ```bash
