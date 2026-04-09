@@ -17,11 +17,8 @@ log_ok() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-APT_SAFE_OPTS=(
-    -o APT::Update::Post-Invoke-Success::=
-    -o APT::Update::Post-Invoke::=
-    -o DPkg::Post-Invoke::=
-)
+CNF_HOOK_PATH="/etc/apt/apt.conf.d/50command-not-found"
+CNF_HOOK_DISABLED_PATH="/etc/apt/apt.conf.d/50command-not-found.disabled-by-rszd"
 
 resolve_runtime_path() {
     local raw_path="$1"
@@ -29,6 +26,20 @@ resolve_runtime_path() {
         printf '%s\n' "${raw_path}"
     else
         printf '%s/%s\n' "${INSTALL_DIR}" "${raw_path}"
+    fi
+}
+
+disable_broken_apt_hooks() {
+    if [[ -f "${CNF_HOOK_PATH}" ]]; then
+        log_warn "Temporarily disabling broken command-not-found APT hook"
+        mv "${CNF_HOOK_PATH}" "${CNF_HOOK_DISABLED_PATH}"
+    fi
+}
+
+restore_broken_apt_hooks() {
+    if [[ -f "${CNF_HOOK_DISABLED_PATH}" ]]; then
+        mv "${CNF_HOOK_DISABLED_PATH}" "${CNF_HOOK_PATH}"
+        log_info "Restored command-not-found APT hook"
     fi
 }
 
@@ -95,14 +106,19 @@ load_env() {
 
 install_system_packages() {
     log_info "Installing system dependencies..."
-    apt-get "${APT_SAFE_OPTS[@]}" update -y
-    DEBIAN_FRONTEND=noninteractive apt-get "${APT_SAFE_OPTS[@]}" install -y \
+    disable_broken_apt_hooks
+    trap restore_broken_apt_hooks EXIT
+    apt-get update -y
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
         python3 \
         python3-venv \
         python3-pip \
+        python3-apt \
         ffmpeg \
         git \
         rsync
+    restore_broken_apt_hooks
+    trap - EXIT
     log_ok "System dependencies installed"
 }
 
