@@ -41,6 +41,13 @@ def _serialize_entry(parts: List[str]) -> str:
     return "\t".join(parts)
 
 
+def _cookie_key(parts: List[str]) -> tuple[str, str, str]:
+    domain = parts[0].strip().lower() if len(parts) > 0 else ""
+    path = parts[2].strip() if len(parts) > 2 else "/"
+    name = parts[5].strip() if len(parts) > 5 else ""
+    return (domain, path, name)
+
+
 def _parse_netscape(content: str) -> List[List[str]]:
     entries: List[List[str]] = []
     for raw_line in content.splitlines():
@@ -94,6 +101,35 @@ def _ensure_entries(content: str) -> List[List[str]]:
     raise CookieImportError("The file does not contain valid cookies")
 
 
+def _load_existing_entries(path: Path) -> List[List[str]]:
+    if not path.exists():
+        return []
+    return _parse_netscape(path.read_text(encoding="utf-8", errors="ignore"))
+
+
+def _merge_entries(existing_entries: List[List[str]], new_entries: List[List[str]]) -> List[str]:
+    merged: Dict[tuple[str, str, str], List[str]] = {}
+    order: List[tuple[str, str, str]] = []
+
+    for parts in existing_entries:
+        key = _cookie_key(parts)
+        if not key[2]:
+            continue
+        if key not in merged:
+            order.append(key)
+        merged[key] = parts
+
+    for parts in new_entries:
+        key = _cookie_key(parts)
+        if not key[2]:
+            continue
+        if key not in merged:
+            order.append(key)
+        merged[key] = parts
+
+    return [_serialize_entry(merged[key]) for key in order]
+
+
 def _write_cookie_file(path: Path, entries: Iterable[str]) -> int:
     items = list(entries)
     if not items:
@@ -110,14 +146,17 @@ def import_cookie_file(source_path: Path, original_name: str) -> CookieImportRes
     content = source_path.read_text(encoding="utf-8", errors="ignore")
     parsed_entries = _ensure_entries(content)
 
-    grouped: Dict[str, List[str]] = {key: [] for key in COOKIE_FILENAMES}
+    grouped: Dict[str, List[List[str]]] = {key: [] for key in COOKIE_FILENAMES}
     for parts in parsed_entries:
         service = _service_for_domain(parts[0])
-        grouped.setdefault(service, []).append(_serialize_entry(parts))
+        grouped.setdefault(service, []).append(parts)
 
     counts: Dict[str, int] = {}
     for service, filename in COOKIE_FILENAMES.items():
-        count = _write_cookie_file(COOKIES_DIR / filename, grouped.get(service, []))
+        destination = COOKIES_DIR / filename
+        existing_entries = _load_existing_entries(destination)
+        merged_entries = _merge_entries(existing_entries, grouped.get(service, []))
+        count = _write_cookie_file(destination, merged_entries)
         if count:
             counts[service] = count
 
